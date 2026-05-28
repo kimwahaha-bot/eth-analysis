@@ -3,6 +3,7 @@
 
 import os
 import sys
+import argparse
 import requests
 import pandas as pd
 import numpy as np
@@ -25,6 +26,50 @@ load_dotenv()
 # ── 設定 ─────────────────────────────────────────────────────────────────────
 ETHERSCAN_API_KEY = os.getenv("ETHERSCAN_API_KEY", "")
 DAYS = 365  # 歷史資料天數（需 ≥ 99 才能計算 MA99）
+
+# ── 圖表主題 ──────────────────────────────────────────────────────────────────
+THEMES = {
+    "dark": {
+        "bg": "#0d1117", "panel": "#161b22", "spine": "#30363d",
+        "tick": "#8b949e", "title": "white", "ylabel": "#8b949e",
+        "price": "#58a6ff", "ma7": "#ff7b72", "ma25": "#ffa657", "ma99": "#d2a8ff",
+        "forecast": "#3fb950", "bb": "#58a6ff",
+        "vol_up": "#3fb950", "vol_dn": "#f85149",
+        "rsi": "#ffa657", "ob": "#f85149", "os": "#3fb950",
+        "macd": "#58a6ff", "signal": "#ff7b72",
+        "hist_up": "#3fb950", "hist_dn": "#f85149",
+    },
+    "tradingview": {
+        "bg": "#ffffff", "panel": "#f8f9fa", "spine": "#e0e3eb",
+        "tick": "#555", "title": "#131722", "ylabel": "#555",
+        "price": "#2962ff", "ma7": "#f23645", "ma25": "#ff9800", "ma99": "#7b1fa2",
+        "forecast": "#26a69a", "bb": "#2962ff",
+        "vol_up": "#26a69a", "vol_dn": "#ef5350",
+        "rsi": "#7e57c2", "ob": "#ef5350", "os": "#26a69a",
+        "macd": "#2962ff", "signal": "#f23645",
+        "hist_up": "#26a69a", "hist_dn": "#ef5350",
+    },
+    "bloomberg": {
+        "bg": "#000000", "panel": "#0a0a0a", "spine": "#222",
+        "tick": "#aaa", "title": "#ff6600", "ylabel": "#aaa",
+        "price": "#ff6600", "ma7": "#ffcc00", "ma25": "#00bfff", "ma99": "#ff69b4",
+        "forecast": "#00ff7f", "bb": "#ff6600",
+        "vol_up": "#00ff7f", "vol_dn": "#ff3333",
+        "rsi": "#ffcc00", "ob": "#ff3333", "os": "#00ff7f",
+        "macd": "#ff6600", "signal": "#ffcc00",
+        "hist_up": "#00ff7f", "hist_dn": "#ff3333",
+    },
+    "neon": {
+        "bg": "#0a0010", "panel": "#10001a", "spine": "#2a0040",
+        "tick": "#cc88ff", "title": "#ff00ff", "ylabel": "#cc88ff",
+        "price": "#00ffff", "ma7": "#ff00aa", "ma25": "#ffaa00", "ma99": "#aa00ff",
+        "forecast": "#00ff88", "bb": "#00ffff",
+        "vol_up": "#00ff88", "vol_dn": "#ff0055",
+        "rsi": "#ffaa00", "ob": "#ff0055", "os": "#00ff88",
+        "macd": "#00ffff", "signal": "#ff00aa",
+        "hist_up": "#00ff88", "hist_dn": "#ff0055",
+    },
+}
 
 # ── 資料抓取 ──────────────────────────────────────────────────────────────────
 
@@ -221,72 +266,86 @@ def predict(df: pd.DataFrame, horizon: int = 7) -> dict:
 
 # ── 視覺化 ────────────────────────────────────────────────────────────────────
 
-def plot(df: pd.DataFrame, pred: dict, out: str = "eth_analysis.png"):
-    plt.style.use("dark_background")
-    fig = plt.figure(figsize=(16, 12), facecolor="#0d1117")
+def plot(df: pd.DataFrame, pred: dict, out: str = "eth_analysis.png", style: str = "dark"):
+    t = THEMES.get(style, THEMES["dark"])
+    is_light = style == "tradingview"
+
+    plt.style.use("default" if is_light else "dark_background")
+    fig = plt.figure(figsize=(16, 12), facecolor=t["bg"])
     gs  = gridspec.GridSpec(4, 1, figure=fig, hspace=0.45, height_ratios=[3, 1, 1, 1])
     axes = [fig.add_subplot(gs[i]) for i in range(4)]
     for ax in axes:
-        ax.set_facecolor("#161b22")
+        ax.set_facecolor(t["panel"])
         for spine in ax.spines.values():
-            spine.set_color("#30363d")
-        ax.tick_params(colors="#8b949e", labelsize=8)
+            spine.set_color(t["spine"])
+        ax.tick_params(colors=t["tick"], labelsize=8)
+
+    # HKD 換算
+    usd_hkd = df.attrs.get("price_verify", {}).get("USD_HKD_Rate", 7.83)
+    hkd_close = df["close"] * usd_hkd
 
     dates = df.index
     ax1, ax2, ax3, ax4 = axes
 
-    # ── 價格 + MA + BB ──
-    ax1.plot(dates, df["close"], color="#58a6ff", lw=1.5, label="ETH Close", zorder=5)
-    for col, color, label in [("SMA_7", "#ff7b72", "MA7"), ("SMA_25", "#ffa657", "MA25"), ("SMA_99", "#d2a8ff", "MA99")]:
+    # ── 價格 + MA + BB（HKD）──
+    ax1.plot(dates, hkd_close, color=t["price"], lw=1.5, label="ETH/HKD", zorder=5)
+    for col, color, label in [("SMA_7", t["ma7"], "MA7"), ("SMA_25", t["ma25"], "MA25"), ("SMA_99", t["ma99"], "MA99")]:
         if col in df.columns:
-            ax1.plot(dates, df[col], color=color, lw=1, alpha=0.8, label=label)
+            ax1.plot(dates, df[col] * usd_hkd, color=color, lw=1, alpha=0.8, label=label)
     if "BBU_20_2.0" in df.columns:
-        ax1.fill_between(dates, df["BBU_20_2.0"], df["BBL_20_2.0"], alpha=0.08, color="#58a6ff")
-        ax1.plot(dates, df["BBU_20_2.0"], color="#58a6ff", lw=0.5, alpha=0.4, ls="--")
-        ax1.plot(dates, df["BBL_20_2.0"], color="#58a6ff", lw=0.5, alpha=0.4, ls="--")
+        ax1.fill_between(dates, df["BBU_20_2.0"] * usd_hkd, df["BBL_20_2.0"] * usd_hkd, alpha=0.08, color=t["bb"])
+        ax1.plot(dates, df["BBU_20_2.0"] * usd_hkd, color=t["bb"], lw=0.5, alpha=0.4, ls="--")
+        ax1.plot(dates, df["BBL_20_2.0"] * usd_hkd, color=t["bb"], lw=0.5, alpha=0.4, ls="--")
 
-    # 預測段
+    # 預測段（HKD）
     last_date = dates[-1]
-    fdates = pd.date_range(start=last_date, periods=len(pred["forecast"]) + 1, freq="D")[1:]
-    ax1.plot(fdates, pred["forecast"], color="#3fb950", lw=1.5, ls="--", alpha=0.9, label="Forecast 7d")
-    ax1.axvline(last_date, color="#8b949e", lw=0.5, ls=":")
-    ax1.set_title(f"ETH/USD  |  Current: ${pred['current']:,.2f}  |  7d Forecast: ${pred['predicted']:,.2f} ({pred['change_pct']:+.1f}%)",
-                  color="white", fontsize=13, fontweight="bold", pad=10)
-    ax1.legend(loc="upper left", fontsize=8, framealpha=0.25)
-    ax1.set_ylabel("USD", color="#8b949e")
+    fdates    = pd.date_range(start=last_date, periods=len(pred["forecast"]) + 1, freq="D")[1:]
+    hkd_forecast = pred["forecast"] * usd_hkd
+    ax1.plot(fdates, hkd_forecast, color=t["forecast"], lw=1.5, ls="--", alpha=0.9, label="Forecast 7d")
+    ax1.axvline(last_date, color=t["tick"], lw=0.5, ls=":")
+    hkd_cur  = pred["current"]   * usd_hkd
+    hkd_pred = pred["predicted"] * usd_hkd
+    ax1.set_title(
+        f"ETH/HKD  |  HK${hkd_cur:,.0f}  |  7d Forecast: HK${hkd_pred:,.0f} ({pred['change_pct']:+.1f}%)",
+        color=t["title"], fontsize=13, fontweight="bold", pad=10
+    )
+    ax1.legend(loc="upper left", fontsize=8, framealpha=0.25,
+               facecolor=t["panel"], labelcolor=t["tick"])
+    ax1.set_ylabel("HKD", color=t["ylabel"])
 
     # ── 成交量 ──
-    colors = ["#3fb950" if c >= o else "#f85149" for c, o in zip(df["close"], df["open"])]
+    colors = [t["vol_up"] if c >= o else t["vol_dn"] for c, o in zip(df["close"], df["open"])]
     ax2.bar(dates, df["volume"], color=colors, alpha=0.7, width=0.8)
-    ax2.set_ylabel("Volume", color="#8b949e", fontsize=9)
+    ax2.set_ylabel("Volume", color=t["ylabel"], fontsize=9)
 
     # ── RSI ──
     if "RSI_14" in df.columns:
-        ax3.plot(dates, df["RSI_14"], color="#ffa657", lw=1.2)
-        ax3.axhline(70, color="#f85149", lw=0.7, ls="--", alpha=0.6)
-        ax3.axhline(30, color="#3fb950", lw=0.7, ls="--", alpha=0.6)
-        ax3.fill_between(dates, df["RSI_14"], 70, where=df["RSI_14"] > 70, color="#f85149", alpha=0.15)
-        ax3.fill_between(dates, df["RSI_14"], 30, where=df["RSI_14"] < 30, color="#3fb950", alpha=0.15)
+        ax3.plot(dates, df["RSI_14"], color=t["rsi"], lw=1.2)
+        ax3.axhline(70, color=t["ob"], lw=0.7, ls="--", alpha=0.6)
+        ax3.axhline(30, color=t["os"], lw=0.7, ls="--", alpha=0.6)
+        ax3.fill_between(dates, df["RSI_14"], 70, where=df["RSI_14"] > 70, color=t["ob"], alpha=0.15)
+        ax3.fill_between(dates, df["RSI_14"], 30, where=df["RSI_14"] < 30, color=t["os"], alpha=0.15)
         ax3.set_ylim(0, 100)
-        ax3.set_ylabel("RSI", color="#8b949e", fontsize=9)
+        ax3.set_ylabel("RSI", color=t["ylabel"], fontsize=9)
         ax3.annotate(f"{df['RSI_14'].iloc[-1]:.1f}", xy=(dates[-1], df["RSI_14"].iloc[-1]),
-                     xytext=(-45, 8), textcoords="offset points", color="#ffa657", fontsize=8)
+                     xytext=(-45, 8), textcoords="offset points", color=t["rsi"], fontsize=8)
 
     # ── MACD ──
     if "MACD_12_26_9" in df.columns:
         macd, sig = df["MACD_12_26_9"], df["MACDs_12_26_9"]
         hist = macd - sig
-        bar_colors = ["#3fb950" if v >= 0 else "#f85149" for v in hist]
+        bar_colors = [t["hist_up"] if v >= 0 else t["hist_dn"] for v in hist]
         ax4.bar(dates, hist, color=bar_colors, alpha=0.7, width=0.8)
-        ax4.plot(dates, macd, color="#58a6ff", lw=1, label="MACD")
-        ax4.plot(dates, sig,  color="#ff7b72", lw=1, label="Signal")
-        ax4.axhline(0, color="#8b949e", lw=0.5)
-        ax4.set_ylabel("MACD", color="#8b949e", fontsize=9)
-        ax4.legend(loc="upper left", fontsize=7, framealpha=0.25)
+        ax4.plot(dates, macd, color=t["macd"],   lw=1, label="MACD")
+        ax4.plot(dates, sig,  color=t["signal"], lw=1, label="Signal")
+        ax4.axhline(0, color=t["tick"], lw=0.5)
+        ax4.set_ylabel("MACD", color=t["ylabel"], fontsize=9)
+        ax4.legend(loc="upper left", fontsize=7, framealpha=0.25,
+                   facecolor=t["panel"], labelcolor=t["tick"])
 
-    plt.savefig(out, dpi=150, bbox_inches="tight", facecolor="#0d1117")
+    plt.savefig(out, dpi=150, bbox_inches="tight", facecolor=t["bg"])
     plt.close()
-    print(f"  → 圖表儲存: {out}")
+    print(f"  → 圖表儲存: {out}  (style: {style})")
 
 # ── 市場建議 & 分析心得 ───────────────────────────────────────────────────────
 
@@ -498,7 +557,12 @@ def send_email(report_text: str, chart_path: str = "eth_analysis.png"):
 # ── 主程式 ────────────────────────────────────────────────────────────────────
 
 def main():
-    print("\n[ETH 分析腳本啟動]")
+    parser = argparse.ArgumentParser(description="ETH 分析腳本")
+    parser.add_argument("--style", choices=["dark", "tradingview", "bloomberg", "neon"],
+                        default="neon", help="圖表風格 (dark/tradingview/bloomberg/neon)")
+    args = parser.parse_args()
+
+    print(f"\n[ETH 分析腳本啟動]  style={args.style}")
     df              = fetch_ohlcv()
     df              = add_indicators(df)
     price_verify    = fetch_price_verify()
@@ -509,7 +573,7 @@ def main():
     defi            = fetch_defi_tvl()
     sentiment       = fetch_sentiment()
     print("  → 生成圖表…")
-    plot(df, pred)
+    plot(df, pred, style=args.style)
     report = print_report(df, signals, pred, onchain, defi, sentiment)
     send_email(report)
 
