@@ -404,74 +404,33 @@ def print_report(df, signals, pred, onchain, defi, sentiment) -> str:
     p(f"\n{'═'*50}")
     p(f"  ETH 以太坊綜合分析報告   {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     p(f"{'═'*50}")
-    pv = df.attrs.get("price_verify", {})
+    # ── 即時報價（HKD 為主，USD 參考）──
+    pv  = df.attrs.get("price_verify", {})
     hkd = pv.get("CoinGecko_HKD") or pv.get("Binance_HKD")
-    hkd_str = f"  /  HK${hkd:,.0f}" if hkd else ""
-    p(f"\n  當前價格  ${price:>10,.2f} USD{hkd_str}   ({chg1d:+.2f}% 24h)")
+    usd_rate = pv.get("USD_HKD_Rate", 7.83)
+    hkd_now  = hkd or price * usd_rate
 
+    p(f"\n  當前價格  HK${hkd_now:>10,.0f}   (USD ${price:,.0f} 參考)   ({chg1d:+.2f}% 24h)")
+
+    # ── 7 日價格預測（HKD）──
+    hkd_pred    = pred["predicted"] * usd_rate
+    hkd_current = pred["current"]   * usd_rate
     p(f"\n{sep}")
-    p("  技術指標訊號")
+    p("  📈 7 日價格預測（線性回歸）")
     p(sep)
-    for name, label, icon, val in signals:
-        p(f"  {icon}  {name:<8} {label:<18} {val}")
+    p(f"  現價       HK${hkd_current:>10,.0f}   (USD ${pred['current']:,.0f})")
+    p(f"  7日預測    HK${hkd_pred:>10,.0f}   (USD ${pred['predicted']:,.0f})")
+    p(f"  預測變化   {pred['change_pct']:+.2f}%   {pred['direction']}")
+    p(f"  模型誤差   MAPE {pred['mape']:.1f}%  （誤差越低越可信）")
 
-    p(f"\n{sep}")
-    p("  價格預測（線性回歸，僅供參考）")
-    p(sep)
-    p(f"  當前價格   ${pred['current']:>10,.2f}")
-    p(f"  7 日預測   ${pred['predicted']:>10,.2f}  ({pred['change_pct']:+.2f}%)")
-    p(f"  方向       {pred['direction']}")
-    p(f"  模型誤差   MAPE {pred['mape']:.1f}%")
-
-    p(f"\n{sep}")
-    p("  鏈上 / DeFi 數據")
-    p(sep)
-    if onchain.get("_skip"):
-        p(f"  ⚠  {onchain['提示']}")
-    else:
-        for k, v in onchain.items():
-            if not k.startswith("_"):
-                p(f"  {k:<22} {v}")
-    for k, v in defi.items():
-        p(f"  {k:<22} {v}")
-
-    pv = df.attrs.get("price_verify", {})
-    if pv:
-        p(f"\n{sep}")
-        p("  價格交叉驗證（對比富途牛牛）")
-        p(sep)
-        if pv.get("CoinGecko_USD"):
-            p(f"  CoinGecko  USD: ${pv['CoinGecko_USD']:>10,.2f}   HKD: HK${pv['CoinGecko_HKD']:>10,.0f}")
-        if pv.get("Binance_USD"):
-            p(f"  Binance    USD: ${pv['Binance_USD']:>10,.2f}   HKD: HK${pv['Binance_HKD']:>10,.0f}")
-        if pv.get("USD_HKD_Rate"):
-            p(f"  USD/HKD 匯率:  {pv['USD_HKD_Rate']:.4f}")
-        if pv.get("差異"):
-            p(f"  兩源差異:      {pv['差異']}  {pv.get('準確度','')}")
-
-    p(f"\n{sep}")
-    p("  市場情緒")
-    p(sep)
-    if "錯誤" in sentiment:
-        p(f"  ⚠  {sentiment['錯誤']}")
-    elif "數值" in sentiment:
-        val = int(sentiment["數值"])
-        bar = "█" * (val // 10) + "░" * (10 - val // 10)
-        p(f"  Fear & Greed  [{bar}] {val}/100")
-        p(f"  狀態          {sentiment['狀態']}")
-    else:
-        for k, v in sentiment.items():
-            p(f"  {k:<22} {v}")
-
+    # ── 市場建議 + 心得（核心重點）──
     advice = generate_advice(df, signals, pred, sentiment)
 
     p(f"\n{sep}")
-    p("  綜合市場建議")
-    p(sep)
     score_bar_len = min(abs(advice["score"]) // 5, 10)
     score_bar = ("+" if advice["score"] >= 0 else "-") * score_bar_len
-    p(f"  {advice['icon']}  立場：{advice['stance']}   評分：{advice['score']:+d}/100  [{score_bar:<10}]")
-    p()
+    p(f"  {advice['icon']} 市場建議：{advice['stance']}   評分 {advice['score']:+d}/100  [{score_bar:<10}]")
+    p(sep)
     for i, tip in enumerate(advice["tips"], 1):
         words = tip
         while len(words) > 46:
@@ -481,13 +440,24 @@ def print_report(df, signals, pred, onchain, defi, sentiment) -> str:
         p(f"  {i}. {words}")
 
     p(f"\n{sep}")
-    p("  分析心得")
+    p("  💡 分析心得")
     p(sep)
     insight = advice["insight"]
     while len(insight) > 46:
         p(f"  {insight[:46]}")
         insight = insight[46:]
     p(f"  {insight}")
+
+    # ── 技術指標摘要（精簡參考）──
+    p(f"\n{sep}")
+    p("  技術指標摘要（參考）")
+    p(sep)
+    for name, label, icon, val in signals:
+        p(f"  {icon} {name:<6} {label}")
+
+    # ── 數據準確度 ──
+    if pv.get("差異"):
+        p(f"\n  數據準確度：CoinGecko vs Binance 差異 {pv['差異']} {pv.get('準確度','')}")
 
     p(f"\n{'═'*50}")
     p("  ⚠  本分析僅供學習參考，不構成投資建議")
