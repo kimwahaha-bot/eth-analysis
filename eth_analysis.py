@@ -56,6 +56,40 @@ def fetch_ohlcv(days: int = DAYS) -> pd.DataFrame:
         sys.exit(1)
 
 
+def fetch_price_verify() -> dict:
+    """交叉驗證 ETH 即時價格：CoinGecko（USD+HKD）vs Binance"""
+    print("  → 交叉驗證即時價格…")
+    result = {}
+    try:
+        # CoinGecko: USD + HKD
+        cg = requests.get("https://api.coingecko.com/api/v3/simple/price",
+            params={"ids": "ethereum", "vs_currencies": "usd,hkd"}, timeout=10).json()
+        result["CoinGecko_USD"] = cg["ethereum"]["usd"]
+        result["CoinGecko_HKD"] = cg["ethereum"]["hkd"]
+    except Exception:
+        result["CoinGecko_USD"] = None
+
+    try:
+        # Binance: ETH/USDT + USD/HKD rate
+        bn = requests.get("https://api.binance.com/api/v3/ticker/price",
+            params={"symbol": "ETHUSDT"}, timeout=10).json()
+        bn_usd = float(bn["price"])
+        fx = requests.get("https://open.er-api.com/v6/latest/USD", timeout=10).json()
+        usd_hkd = fx["rates"]["HKD"]
+        result["Binance_USD"]  = bn_usd
+        result["Binance_HKD"]  = round(bn_usd * usd_hkd, 2)
+        result["USD_HKD_Rate"] = usd_hkd
+    except Exception:
+        result["Binance_USD"] = None
+
+    if result.get("CoinGecko_USD") and result.get("Binance_USD"):
+        diff_pct = abs(result["CoinGecko_USD"] - result["Binance_USD"]) / result["Binance_USD"] * 100
+        result["差異"] = f"{diff_pct:.3f}%"
+        result["準確度"] = "✓ 正常" if diff_pct < 1 else "⚠ 差異過大"
+
+    return result
+
+
 def fetch_onchain() -> dict:
     """Etherscan — Gas 費用 & ETH 供應量（需 ETHERSCAN_API_KEY）"""
     if not ETHERSCAN_API_KEY:
@@ -370,7 +404,10 @@ def print_report(df, signals, pred, onchain, defi, sentiment) -> str:
     p(f"\n{'═'*50}")
     p(f"  ETH 以太坊綜合分析報告   {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     p(f"{'═'*50}")
-    p(f"\n  當前價格  ${price:>10,.2f} USD   ({chg1d:+.2f}% 24h)")
+    pv = df.attrs.get("price_verify", {})
+    hkd = pv.get("CoinGecko_HKD") or pv.get("Binance_HKD")
+    hkd_str = f"  /  HK${hkd:,.0f}" if hkd else ""
+    p(f"\n  當前價格  ${price:>10,.2f} USD{hkd_str}   ({chg1d:+.2f}% 24h)")
 
     p(f"\n{sep}")
     p("  技術指標訊號")
@@ -397,6 +434,20 @@ def print_report(df, signals, pred, onchain, defi, sentiment) -> str:
                 p(f"  {k:<22} {v}")
     for k, v in defi.items():
         p(f"  {k:<22} {v}")
+
+    pv = df.attrs.get("price_verify", {})
+    if pv:
+        p(f"\n{sep}")
+        p("  價格交叉驗證（對比富途牛牛）")
+        p(sep)
+        if pv.get("CoinGecko_USD"):
+            p(f"  CoinGecko  USD: ${pv['CoinGecko_USD']:>10,.2f}   HKD: HK${pv['CoinGecko_HKD']:>10,.0f}")
+        if pv.get("Binance_USD"):
+            p(f"  Binance    USD: ${pv['Binance_USD']:>10,.2f}   HKD: HK${pv['Binance_HKD']:>10,.0f}")
+        if pv.get("USD_HKD_Rate"):
+            p(f"  USD/HKD 匯率:  {pv['USD_HKD_Rate']:.4f}")
+        if pv.get("差異"):
+            p(f"  兩源差異:      {pv['差異']}  {pv.get('準確度','')}")
 
     p(f"\n{sep}")
     p("  市場情緒")
@@ -478,13 +529,15 @@ def send_email(report_text: str, chart_path: str = "eth_analysis.png"):
 
 def main():
     print("\n[ETH 分析腳本啟動]")
-    df        = fetch_ohlcv()
-    df        = add_indicators(df)
-    signals   = read_signals(df)
-    pred      = predict(df)
-    onchain   = fetch_onchain()
-    defi      = fetch_defi_tvl()
-    sentiment = fetch_sentiment()
+    df              = fetch_ohlcv()
+    df              = add_indicators(df)
+    price_verify    = fetch_price_verify()
+    df.attrs["price_verify"] = price_verify
+    signals         = read_signals(df)
+    pred            = predict(df)
+    onchain         = fetch_onchain()
+    defi            = fetch_defi_tvl()
+    sentiment       = fetch_sentiment()
     print("  → 生成圖表…")
     plot(df, pred)
     report = print_report(df, signals, pred, onchain, defi, sentiment)
