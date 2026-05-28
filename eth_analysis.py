@@ -6,6 +6,10 @@ import sys
 import requests
 import pandas as pd
 import numpy as np
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -352,87 +356,123 @@ def generate_advice(df: pd.DataFrame, signals: list, pred: dict, sentiment: dict
 
 # ── 報告輸出 ──────────────────────────────────────────────────────────────────
 
-def print_report(df, signals, pred, onchain, defi, sentiment):
+def print_report(df, signals, pred, onchain, defi, sentiment) -> str:
     price  = df["close"].iloc[-1]
     prev   = df["close"].iloc[-2]
     chg1d  = (price - prev) / prev * 100
 
+    lines = []
+    def p(s=""):
+        print(s)
+        lines.append(s)
+
     sep = "─" * 50
-    print(f"\n{'═'*50}")
-    print(f"  ETH 以太坊綜合分析報告   {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print(f"{'═'*50}")
-    print(f"\n  當前價格  ${price:>10,.2f} USD   ({chg1d:+.2f}% 24h)")
+    p(f"\n{'═'*50}")
+    p(f"  ETH 以太坊綜合分析報告   {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    p(f"{'═'*50}")
+    p(f"\n  當前價格  ${price:>10,.2f} USD   ({chg1d:+.2f}% 24h)")
 
-    print(f"\n{sep}")
-    print("  技術指標訊號")
-    print(sep)
+    p(f"\n{sep}")
+    p("  技術指標訊號")
+    p(sep)
     for name, label, icon, val in signals:
-        print(f"  {icon}  {name:<8} {label:<18} {val}")
+        p(f"  {icon}  {name:<8} {label:<18} {val}")
 
-    print(f"\n{sep}")
-    print("  價格預測（線性回歸，僅供參考）")
-    print(sep)
-    print(f"  當前價格   ${pred['current']:>10,.2f}")
-    print(f"  7 日預測   ${pred['predicted']:>10,.2f}  ({pred['change_pct']:+.2f}%)")
-    print(f"  方向       {pred['direction']}")
-    print(f"  模型誤差   MAPE {pred['mape']:.1f}%")
+    p(f"\n{sep}")
+    p("  價格預測（線性回歸，僅供參考）")
+    p(sep)
+    p(f"  當前價格   ${pred['current']:>10,.2f}")
+    p(f"  7 日預測   ${pred['predicted']:>10,.2f}  ({pred['change_pct']:+.2f}%)")
+    p(f"  方向       {pred['direction']}")
+    p(f"  模型誤差   MAPE {pred['mape']:.1f}%")
 
-    print(f"\n{sep}")
-    print("  鏈上 / DeFi 數據")
-    print(sep)
+    p(f"\n{sep}")
+    p("  鏈上 / DeFi 數據")
+    p(sep)
     if onchain.get("_skip"):
-        print(f"  ⚠  {onchain['提示']}")
+        p(f"  ⚠  {onchain['提示']}")
     else:
         for k, v in onchain.items():
             if not k.startswith("_"):
-                print(f"  {k:<22} {v}")
+                p(f"  {k:<22} {v}")
     for k, v in defi.items():
-        print(f"  {k:<22} {v}")
+        p(f"  {k:<22} {v}")
 
-    print(f"\n{sep}")
-    print("  市場情緒")
-    print(sep)
+    p(f"\n{sep}")
+    p("  市場情緒")
+    p(sep)
     if "錯誤" in sentiment:
-        print(f"  ⚠  {sentiment['錯誤']}")
+        p(f"  ⚠  {sentiment['錯誤']}")
     elif "數值" in sentiment:
         val = int(sentiment["數值"])
         bar = "█" * (val // 10) + "░" * (10 - val // 10)
-        print(f"  Fear & Greed  [{bar}] {val}/100")
-        print(f"  狀態          {sentiment['狀態']}")
+        p(f"  Fear & Greed  [{bar}] {val}/100")
+        p(f"  狀態          {sentiment['狀態']}")
     else:
         for k, v in sentiment.items():
-            print(f"  {k:<22} {v}")
+            p(f"  {k:<22} {v}")
 
     advice = generate_advice(df, signals, pred, sentiment)
 
-    print(f"\n{sep}")
-    print("  綜合市場建議")
-    print(sep)
+    p(f"\n{sep}")
+    p("  綜合市場建議")
+    p(sep)
     score_bar_len = min(abs(advice["score"]) // 5, 10)
     score_bar = ("+" if advice["score"] >= 0 else "-") * score_bar_len
-    print(f"  {advice['icon']}  立場：{advice['stance']}   評分：{advice['score']:+d}/100  [{score_bar:<10}]")
-    print()
+    p(f"  {advice['icon']}  立場：{advice['stance']}   評分：{advice['score']:+d}/100  [{score_bar:<10}]")
+    p()
     for i, tip in enumerate(advice["tips"], 1):
-        # 每行最多 46 字元自動換行
         words = tip
         while len(words) > 46:
-            print(f"  {i}. {words[:46]}")
+            p(f"  {i}. {words[:46]}")
             words = "     " + words[46:]
             i = " "
-        print(f"  {i}. {words}")
+        p(f"  {i}. {words}")
 
-    print(f"\n{sep}")
-    print("  分析心得")
-    print(sep)
+    p(f"\n{sep}")
+    p("  分析心得")
+    p(sep)
     insight = advice["insight"]
     while len(insight) > 46:
-        print(f"  {insight[:46]}")
+        p(f"  {insight[:46]}")
         insight = insight[46:]
-    print(f"  {insight}")
+    p(f"  {insight}")
 
-    print(f"\n{'═'*50}")
-    print("  ⚠  本分析僅供學習參考，不構成投資建議")
-    print(f"{'═'*50}\n")
+    p(f"\n{'═'*50}")
+    p("  ⚠  本分析僅供學習參考，不構成投資建議")
+    p(f"{'═'*50}\n")
+
+    return "\n".join(lines)
+
+# ── Email 通知 ────────────────────────────────────────────────────────────────
+
+def send_email(report_text: str, chart_path: str = "eth_analysis.png"):
+    """透過 Gmail SMTP 寄出分析報告（附圖表）"""
+    gmail_addr = os.getenv("GMAIL_ADDRESS", "")
+    gmail_pass = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "")
+    if not gmail_addr or not gmail_pass:
+        print("  → 未設定 Gmail 憑證，跳過寄信")
+        return
+
+    print(f"  → 寄送 Email 至 {gmail_addr}…")
+    msg = MIMEMultipart()
+    msg["From"]    = gmail_addr
+    msg["To"]      = gmail_addr
+    msg["Subject"] = f"ETH 每日分析報告 {datetime.now().strftime('%Y-%m-%d')}"
+    msg.attach(MIMEText(report_text, "plain", "utf-8"))
+
+    try:
+        with open(chart_path, "rb") as f:
+            img = MIMEImage(f.read())
+            img.add_header("Content-Disposition", "attachment", filename="eth_analysis.png")
+            msg.attach(img)
+    except FileNotFoundError:
+        pass
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(gmail_addr, gmail_pass)
+        server.send_message(msg)
+    print("  → Email 已寄出 ✓")
 
 # ── 主程式 ────────────────────────────────────────────────────────────────────
 
@@ -447,7 +487,8 @@ def main():
     sentiment = fetch_sentiment()
     print("  → 生成圖表…")
     plot(df, pred)
-    print_report(df, signals, pred, onchain, defi, sentiment)
+    report = print_report(df, signals, pred, onchain, defi, sentiment)
+    send_email(report)
 
 if __name__ == "__main__":
     main()
