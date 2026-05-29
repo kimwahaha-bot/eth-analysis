@@ -1,0 +1,42 @@
+[info] 監控 @kmik.kc (id=270739563)，每 900s 檢查一次
+[2026-05-29 01:02] @kmik.kc followers: 135
+[info] 監控 @kmik.kc (id=270739563)，每 900s 檢查一次
+[2026-05-29 01:04] @kmik.kc followers: 135
+[2026-05-29 07:10] @kmik.kc followers: 135
+[error] failed to fetch followers page: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+[2026-05-29 10:22] @kmik.kc followers: 135
+[2026-05-29 10:38] @kmik.kc followers: 135
+[2026-05-29 10:53] @kmik.kc followers: 135
+[error] failed to fetch followers page: HTTPSConnectionPool(host='www.instagram.com', port=443): Max retries exceeded with url: /api/v1/friendships/270739563/followers/?count=200 (Caused by NameResolutionError("HTTPSConnection(host='www.instagram.com', port=443): Failed to resolve 'www.instagram.com' ([Errno 8] nodename nor servname provided, or not known)"))
+[2026-05-29 12:01] @kmik.kc followers: 135
+[2026-05-29 12:16] @kmik.kc followers: 135
+[2026-05-29 12:31] @kmik.kc followers: 135
+[2026-05-29 12:47] @kmik.kc followers: 135
+[2026-05-29 13:02] @kmik.kc followers: 135
+[2026-05-29 13:17] @kmik.kc followers: 135
+[2026-05-29 13:32] @kmik.kc followers: 135
+[2026-05-29 13:47] @kmik.kc followers: 135
+[2026-05-29 14:02] @kmik.kc followers: 135
+[2026-05-29 14:17] @kmik.kc followers: 135
+[2026-05-29 14:32] @kmik.kc followers: 135
+[2026-05-29 14:48] @kmik.kc followers: 135
+[2026-05-29 15:03] @kmik.kc followers: 135
+[2026-05-29 15:18] @kmik.kc followers: 135
+[2026-05-29 15:33] @kmik.kc followers: 135
+[2026-05-29 15:48] @kmik.kc followers: 135
+[2026-05-29 16:03] @kmik.kc followers: 135
+[2026-05-29 16:19] @kmik.kc followers: 135
+[2026-05-29 16:34] @kmik.kc followers: 135
+[2026-05-29 16:49] @kmik.kc followers: 135
+[2026-05-29 17:04] @kmik.kc followers: 135
+[2026-05-29 17:19] @kmik.kc followers: 135
+[2026-05-29 17:34] @kmik.kc followers: 135
+[2026-05-29 17:50] @kmik.kc followers: 135
+[2026-05-29 18:05] @kmik.kc followers: 135
+[2026-05-29 18:20] @kmik.kc followers: 135
+[2026-05-29 18:35] @kmik.kc followers: 135
+[2026-05-29 18:50] @kmik.kc followers: 135
+[2026-05-29 19:05] @kmik.kc followers: 135
+[2026-05-29 19:20] @kmik.kc followers: 135
+[2026-05-29 19:36] @kmik.kc followers: 135
+[2026-05-29 19:51] @kmik.kc followers: 135

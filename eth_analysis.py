@@ -14,7 +14,6 @@ from email.mime.image import MIMEImage
 from datetime import datetime
 from dotenv import load_dotenv
 
-import pandas_ta as ta
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_percentage_error
@@ -193,12 +192,34 @@ def fetch_sentiment() -> dict:
 # ── 技術分析 ──────────────────────────────────────────────────────────────────
 
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    df.ta.sma(length=7, append=True)
-    df.ta.sma(length=25, append=True)
-    df.ta.sma(length=99, append=True)
-    df.ta.rsi(length=14, append=True)
-    df.ta.macd(fast=12, slow=26, signal=9, append=True)
-    df.ta.bbands(length=20, std=2, append=True)
+    c = df["close"]
+
+    df["SMA_7"]  = c.rolling(7).mean()
+    df["SMA_25"] = c.rolling(25).mean()
+    df["SMA_99"] = c.rolling(99).mean()
+
+    # RSI-14
+    delta = c.diff()
+    gain  = delta.clip(lower=0).rolling(14).mean()
+    loss  = (-delta.clip(upper=0)).rolling(14).mean()
+    rs    = gain / loss.replace(0, np.nan)
+    df["RSI_14"] = 100 - (100 / (1 + rs))
+
+    # MACD
+    ema12 = c.ewm(span=12, adjust=False).mean()
+    ema26 = c.ewm(span=26, adjust=False).mean()
+    macd  = ema12 - ema26
+    df["MACD_12_26_9"]  = macd
+    df["MACDs_12_26_9"] = macd.ewm(span=9, adjust=False).mean()
+    df["MACDh_12_26_9"] = df["MACD_12_26_9"] - df["MACDs_12_26_9"]
+
+    # Bollinger Bands
+    sma20 = c.rolling(20).mean()
+    std20 = c.rolling(20).std()
+    df["BBM_20_2.0"] = sma20
+    df["BBU_20_2.0"] = sma20 + 2 * std20
+    df["BBL_20_2.0"] = sma20 - 2 * std20
+
     return df
 
 
