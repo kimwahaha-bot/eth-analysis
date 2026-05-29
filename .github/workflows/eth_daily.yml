@@ -1,0 +1,27 @@
+name: ETH Daily Analysis
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 10:00 AM HKT (UTC+8)
+  workflow_dispatch:       # manual trigger from GitHub UI
+
+jobs:
+  analyse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install requests pandas numpy scikit-learn matplotlib python-dotenv
+
+      - name: Run ETH analysis
+        env:
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python eth_analysis.py --style neon
