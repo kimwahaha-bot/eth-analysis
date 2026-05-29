@@ -18,6 +18,8 @@ import pandas_ta as ta
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_percentage_error
+import matplotlib
+matplotlib.use("Agg")  # headless mode — no display required
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
