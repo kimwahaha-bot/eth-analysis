@@ -551,10 +551,25 @@ def send_email(report_text: str, chart_path: str = "eth_analysis.png"):
     except FileNotFoundError:
         pass
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(gmail_addr, gmail_pass)
-        server.send_message(msg)
-    print("  → Email 已寄出 ✓")
+    # try port 465 (SSL) first, fall back to 587 (STARTTLS)
+    sent = False
+    for method, connect in [
+        ("465/SSL", lambda: smtplib.SMTP_SSL("smtp.gmail.com", 465)),
+        ("587/TLS", lambda: smtplib.SMTP("smtp.gmail.com", 587)),
+    ]:
+        try:
+            with connect() as server:
+                if method == "587/TLS":
+                    server.starttls()
+                server.login(gmail_addr, gmail_pass)
+                server.send_message(msg)
+            print(f"  → Email 已寄出 ✓ (port {method})")
+            sent = True
+            break
+        except Exception as e:
+            print(f"  → port {method} 失敗: {e}")
+    if not sent:
+        print("  → Email 寄送失敗（兩個 port 均無法連線）")
 
 # ── 主程式 ────────────────────────────────────────────────────────────────────
 
