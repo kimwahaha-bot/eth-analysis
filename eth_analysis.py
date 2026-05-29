@@ -571,6 +571,23 @@ def send_email(report_text: str, chart_path: str = "eth_analysis.png"):
     if not sent:
         print("  → Email 寄送失敗（兩個 port 均無法連線）")
 
+    # send ntfy.sh push notification regardless of email result
+    status = "Email sent OK" if sent else "Email FAILED"
+    try:
+        requests.post(
+            "https://ntfy.sh/eth-report-kimwahaha",
+            json={
+                "topic": "eth-report-kimwahaha",
+                "title": "ETH Daily Report",
+                "message": f"{status} | {datetime.now().strftime('%Y-%m-%d %H:%M')} HKT",
+                "priority": 3,
+            },
+            timeout=10,
+        )
+        print("  -> ntfy notification sent")
+    except Exception as e:
+        print(f"  -> ntfy failed (non-critical): {e}")
+
 # ── 主程式 ────────────────────────────────────────────────────────────────────
 
 def main():
